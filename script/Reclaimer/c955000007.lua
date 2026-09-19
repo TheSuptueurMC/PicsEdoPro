@@ -1,0 +1,158 @@
+Duel.LoadScript("MeubleConstant.lua")
+
+--The Gravemind
+local s,id=GetID()
+function s.initial_effect(c)
+    c:EnableReviveLimit()
+	Fusion.AddProcMixRep(c,true,true,s.mat_extra,0,99,s.mat_recruit,s.mat_field,s.mat_grave)    
+	c:AddMustBeFusionSummoned()
+    local e0=Effect.CreateEffect(c)
+	e0:SetType(EFFECT_TYPE_SINGLE)
+	e0:SetProperty(EFFECT_FLAG_CANNOT_DISABLE+EFFECT_FLAG_UNCOPYABLE+EFFECT_FLAG_SINGLE_RANGE)
+    e0:SetRange(LOCATION_ALL)
+    e0:SetCode(EFFECT_ADD_RACE)
+	e0:SetValue(RACE_WARRIOR+RACE_GALAXY)
+	c:RegisterEffect(e0)
+    local e0a=Effect.CreateEffect(c)
+	e0a:SetDescription(aux.Stringid(id,0))
+	e0a:SetType(EFFECT_TYPE_FIELD)
+	e0a:SetProperty(EFFECT_FLAG_CANNOT_DISABLE+EFFECT_FLAG_UNCOPYABLE)
+	e0a:SetCode(EFFECT_SPSUMMON_PROC)
+	e0a:SetRange(LOCATION_EXTRA)
+	e0a:SetCondition(s.selfspcon)
+	e0a:SetTarget(s.selfsptg)
+	e0a:SetOperation(s.selfspop)
+	e0a:SetValue(1)
+	c:RegisterEffect(e0a)
+    local e0b=Effect.CreateEffect(c)
+	e0b:SetType(EFFECT_TYPE_SINGLE+EFFECT_TYPE_CONTINUOUS)
+	e0b:SetProperty(EFFECT_FLAG_CANNOT_DISABLE)
+	e0b:SetCode(EVENT_SPSUMMON_SUCCESS)
+	e0b:SetCondition(s.regcon)
+	e0b:SetOperation(s.regop)
+	c:RegisterEffect(e0b)
+    local e1=Effect.CreateEffect(c)
+	e1:SetType(EFFECT_TYPE_SINGLE)
+	e1:SetCode(EFFECT_IMMUNE_EFFECT)
+	e1:SetProperty(EFFECT_FLAG_SINGLE_RANGE)
+	e1:SetRange(LOCATION_MZONE)
+	e1:SetCondition(s.immcon)
+	e1:SetValue(s.immval)
+	c:RegisterEffect(e1)
+    local e2=Effect.CreateEffect(c)
+	e2:SetType(EFFECT_TYPE_SINGLE+EFFECT_TYPE_CONTINUOUS)
+	e2:SetCode(EVENT_SPSUMMON_SUCCESS)
+	e2:SetOperation(s.sucop)
+	c:RegisterEffect(e2)
+    local e3=Effect.CreateEffect(c)
+    e3:SetDescription(aux.Stringid(id,0))
+	e3:SetCategory(CATEGORY_SPECIAL_SUMMON)
+	e3:SetType(EFFECT_TYPE_QUICK_O)
+	e3:SetProperty(EFFECT_FLAG_DELAY+EFFECT_FLAG_CARD_TARGET)
+	e3:SetCode(EVENT_FREE_CHAIN)
+    e3:SetRange(LOCATION_MZONE)
+	e3:SetCountLimit(1,{id,1})
+	e3:SetTarget(s.spstg)
+	e3:SetOperation(s.spsop)
+    e3:SetHintTiming(0,TIMING_STANDBY_PHASE|TIMING_MAIN_END|TIMINGS_CHECK_MONSTER_E)
+	c:RegisterEffect(e3)
+end
+s.listed_names={CARD_INFESTED_RECRUITS}
+function s.mat_recruit(c,fc,sumtype,tp)
+    return c:IsSetCard(SET_RECRUIT)
+end
+function s.mat_field(c,fc,sumtype,tp)
+    return c:IsLocation(LOCATION_MZONE)
+end
+function s.mat_grave(c,fc,sumtype,tp)
+    return c:IsLocation(LOCATION_GRAVE)
+end
+function s.mat_extra(c,fc,sumtype,tp)
+    return c:IsLocation(LOCATION_MZONE|LOCATION_GRAVE)
+end
+function s.gfilter(c,fc,sumtype,tp)
+	return c:IsLocation(LOCATION_GRAVE)
+end
+function s.ffilter(c)
+	return c:IsLocation(LOCATION_MZONE)
+end
+function s.selfspcostfilter(c,tp,fc)
+	return c:IsReleasable()
+		and c:IsCanBeFusionMaterial(fc,MATERIAL_FUSION) 
+        and (c:IsControler(tp) or c:IsFaceup())
+end
+function s.rescon(sg,e,tp,mg)
+	return Duel.GetLocationCountFromEx(tp,tp,sg,e:GetHandler())>0
+		and sg:FilterCount(Card.IsControler,nil,tp)==1
+        and sg:IsExists(Card.IsCode,1,nil,955000010)
+end
+function s.selfspcon(e,c)
+	if not c then return true end
+	local tp=c:GetControler()
+	local mg=Duel.GetMatchingGroup(s.selfspcostfilter,tp,LOCATION_MZONE,LOCATION_MZONE,nil,tp,c)
+	return #mg>=2 and aux.SelectUnselectGroup(mg,e,tp,2,2,s.rescon,0)
+end
+function s.selfsptg(e,tp,eg,ep,ev,re,r,rp,chk,c)
+	local mg=Duel.GetMatchingGroup(s.selfspcostfilter,tp,LOCATION_MZONE,LOCATION_MZONE,nil,tp,c)
+	local g=aux.SelectUnselectGroup(mg,e,tp,2,2,s.rescon,1,tp,HINTMSG_RELEASE,nil,nil,true)
+	if #g>0 then
+		e:SetLabelObject(g)
+		return true
+	end
+	return false
+end
+function s.selfspop(e,tp,eg,ep,ev,re,r,rp,c)
+	local g=e:GetLabelObject()
+	if not g then return end
+    c:SetMaterial(g)
+	Duel.Release(g,REASON_COST|REASON_MATERIAL)
+end
+function s.regcon(e)
+	local c=e:GetHandler()
+	return c:IsFusionSummoned() or c:IsSummonType(SUMMON_TYPE_SPECIAL+1)
+end
+function s.regop(e,tp,eg,ep,ev,re,r,rp)
+	local e1=Effect.CreateEffect(e:GetHandler())
+	e1:SetType(EFFECT_TYPE_FIELD)
+	e1:SetProperty(EFFECT_FLAG_PLAYER_TARGET)
+	e1:SetCode(EFFECT_CANNOT_SPECIAL_SUMMON)
+	e1:SetTargetRange(1,0)
+	e1:SetTarget(function(e,c,sump,sumtype) return c:IsOriginalCodeRule(id) and (sumtype&SUMMON_TYPE_FUSION==SUMMON_TYPE_FUSION or sumtype&SUMMON_TYPE_SPECIAL+1==SUMMON_TYPE_SPECIAL+1) end)
+	e1:SetReset(RESET_PHASE|PHASE_END)
+	Duel.RegisterEffect(e1,tp)
+end
+function s.immcon(e)
+	return e:GetHandler():IsFusionSummoned()
+end
+function s.immval(e,te)
+	return te:GetOwnerPlayer()~=e:GetHandlerPlayer()
+end
+function s.sucop(e,tp,eg,ep,ev,re,r,rp)
+	local c=e:GetHandler()
+	local e1=Effect.CreateEffect(c)
+	e1:SetType(EFFECT_TYPE_SINGLE)
+	e1:SetCode(EFFECT_SET_BASE_ATTACK)
+	e1:SetValue(c:GetMaterialCount()*700)
+	e1:SetReset(RESET_EVENT|RESETS_STANDARD_DISABLE)
+	c:RegisterEffect(e1)
+	local e2=e1:Clone()
+	e2:SetCode(EFFECT_SET_BASE_DEFENSE)
+	c:RegisterEffect(e2)
+end
+function s.spsfilter(c,e,tp)
+    return c:IsCanBeSpecialSummoned(e,0,tp,false,false)
+end
+function s.spstg(e,tp,eg,ep,ev,re,r,rp,chk,chkc)
+	if chkc then return chkc:IsLocation(LOCATION_GRAVE) and s.spsfilter(chkc,e,tp) end
+	if chk==0 then return Duel.GetLocationCount(tp,LOCATION_MZONE)>0 
+		and Duel.IsExistingTarget(s.spsfilter,tp,LOCATION_GRAVE,LOCATION_GRAVE,1,nil,e,tp) end
+	Duel.Hint(HINT_SELECTMSG,tp,HINTMSG_SPSUMMON)
+	local g=Duel.SelectTarget(tp,s.spsfilter,tp,LOCATION_GRAVE,LOCATION_GRAVE,1,1,nil,e,tp)
+	Duel.SetOperationInfo(0,CATEGORY_SPECIAL_SUMMON,g,1,0,0)
+end
+function s.spsop(e,tp,eg,ep,ev,re,r,rp)
+    local tc=Duel.GetFirstTarget()
+	if tc:IsRelateToEffect(e) then
+		Duel.SpecialSummon(tc,0,tp,tp,false,false,POS_FACEUP)
+	end
+end
